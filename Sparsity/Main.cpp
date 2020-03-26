@@ -1,19 +1,29 @@
 #include <fstream>
 #include <iostream>
-#include <string>
+#include "Graph.h"
 
-//gets file name from user
-std::string getFileName()
+//gets file name from user and tries to open file, returns false if file can't be opened and true otherwise
+bool openFile(std::ifstream& inputFile)
 {
 	//declaration
-	std::string line;
+	std::string inputName;
 
 	//get file name
 	printf("Input file name: ");
-	std::getline(std::cin, line);
+	std::getline(std::cin, inputName);
 
-	//return file name
-	return line;
+	//try to open file
+	inputFile.open(inputName);
+
+	//end if file could not open
+	if (!inputFile.is_open())
+	{
+		printf("Can't open file.\n");
+		return false;
+	}
+
+	//file opened
+	return true;
 }
 
 //gets k from user, throws exception if k < 1 or non-int
@@ -54,7 +64,34 @@ int getL()
 	return l;
 }
 
-//opens/closes input file
+//checks sparsity and tightness using Kiraly's algorithm (https://web.cs.elte.hu/egres/qp/egresqp-19-04.pdf)
+std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
+{
+	//TODO
+	return "WIP";
+}
+
+//checks sparsity and tightness using Lee and Streinu's component pebble game (https://www.sciencedirect.com/science/article/pii/S0012365X07005602)
+std::string checkSparsityWithNonNegativeL(std::ifstream& inputFile, int k, int l)
+{
+	//TODO
+	return "WIP";
+}
+
+//shows result
+void checkSparsity(std::ifstream& inputFile, int k, int l)
+{
+	//declaration
+	std::string line;
+
+	//print result
+	printf("Result: %s\nPress Enter to finish.", (l < 0) ? (checkSparsityWithNegativeL(inputFile, k, l).c_str()) : (checkSparsityWithNonNegativeL(inputFile, k, l).c_str()));
+
+	//wait until user presses enter
+	std::getline(std::cin, line);
+}
+
+//handles errors, closes file
 int main(int argc, char** argv)
 {
 	//declarations
@@ -62,13 +99,9 @@ int main(int argc, char** argv)
 	int l;
 	std::ifstream inputFile;
 
-	//try to open file
-	inputFile.open(getFileName());
-
-	//end if file could not open
-	if (!inputFile.is_open())
+	//try to open file, end if file could not open
+	if (!openFile(inputFile))
 	{
-		printf("Can't open file.\n");
 		return -1;
 	}
 
@@ -92,7 +125,8 @@ int main(int argc, char** argv)
 		return -3;
 	}
 
-	//close file and end
+	//run algorithm, close file, end
+	checkSparsity(inputFile, k, l);
 	inputFile.close();
 	return 0;
 }
