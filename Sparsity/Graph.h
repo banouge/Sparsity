@@ -13,13 +13,19 @@ public:
 	const std::string NAME;
 
 	int getNumPebbles();
+	int getInDegree();
+	int getOutDegree();
 	void setNumPebbles(int numPebbles);
-	void addEdge(Edge* edge);
-	void removeEdge(Edge* edge);
-	bool hasEdge(Edge* edge);
+	void addInEdge(Edge* edge);
+	void addOutEdge(Edge* edge);
+	void removeInEdge(Edge* edge);
+	void removeOutEdge(Edge* edge);
+	bool hasInEdge(Edge* edge);
+	bool hasOutEdge(Edge* edge);
 
 private:
 	int numPebbles;
+	std::unordered_set<Edge*> inEdges;
 	std::unordered_set<Edge*> outEdges;
 };
 

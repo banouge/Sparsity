@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 #include "Graph.h"
 
 //gets file name from user and tries to open file, returns false if file can't be opened and true otherwise
@@ -64,11 +65,48 @@ int getL()
 	return l;
 }
 
+//gets next edge from file, adds edge to set, creates and adds vertices to map if necessary
+Edge* getNextEdge(std::ifstream& inputFile, std::unordered_map<std::string, Vertex*>& vertices, std::unordered_set<Edge*>& edges, int k)
+{
+	//declarations
+	std::string line;
+	Vertex* origin;
+	Vertex* destination;
+
+	//get vertex names
+	std::getline(inputFile, line);
+	std::size_t posComma = line.find(',');
+	std::string originName = line.substr(0, posComma);
+	std::string destinationName = line.substr(posComma + 1);
+
+	//get or create origin and destination
+	origin = (vertices.count(originName)) ? (vertices.at(originName)) : (vertices.emplace(originName, new Vertex(originName, k)).first->second);
+	destination = (vertices.count(destinationName)) ? (vertices.at(destinationName)) : (vertices.emplace(destinationName, new Vertex(destinationName, k)).first->second);
+
+	//add edge to set, return edge
+	return *edges.emplace(new Edge(origin, destination)).first;
+}
+
 //checks sparsity and tightness using Kiraly's algorithm (https://web.cs.elte.hu/egres/qp/egresqp-19-04.pdf)
 std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 {
+	//declarations
+	std::unordered_map<std::string, Vertex*> vertices;
+	std::unordered_set<Vertex*> xVertices;
+	std::unordered_set<Edge*> edges;
+	std::unordered_set<Edge*> fEdges;
+	std::unordered_set<Edge*> gammaEdges;
+
 	//TODO
-	return "WIP";
+
+	//TEMP
+	if (l < 0)
+	{
+		return "WIP";
+	}
+	
+	//return "tight" if |E| = k|V| - l and "sparse" otherwise
+	return (edges.size() == k * vertices.size() - l) ? ("TIGHT") : ("SPARSE");
 }
 
 //checks sparsity and tightness using Lee and Streinu's component pebble game (https://www.sciencedirect.com/science/article/pii/S0012365X07005602)
