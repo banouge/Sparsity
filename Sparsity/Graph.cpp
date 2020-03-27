@@ -5,6 +5,16 @@ Vertex::Vertex(std::string name, int numPebbles): NAME(name)
 	this->numPebbles = numPebbles;
 }
 
+const std::unordered_set<Edge*>& Vertex::getInEdges()
+{
+	return inEdges;
+}
+
+const std::unordered_set<Edge*>& Vertex::getOutEdges()
+{
+	return outEdges;
+}
+
 int Vertex::getNumPebbles()
 {
 	return numPebbles;

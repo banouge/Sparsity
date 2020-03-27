@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <queue>
 #include <unordered_map>
 #include "Graph.h"
 
@@ -65,7 +66,7 @@ int getL()
 	return l;
 }
 
-//gets next edge from file, adds edge to set, creates and adds vertices to map if necessary
+//gets next edge from file, adds edge to set (but not vertices because edge may be reversed or rejected), creates and adds vertices to map if necessary
 Edge* getNextEdge(std::ifstream& inputFile, std::unordered_map<std::string, Vertex*>& vertices, std::unordered_set<Edge*>& edges, int k)
 {
 	//declarations
@@ -91,8 +92,16 @@ Edge* getNextEdge(std::ifstream& inputFile, std::unordered_map<std::string, Vert
 	origin = (vertices.count(originName)) ? (vertices.at(originName)) : (vertices.emplace(originName, new Vertex(originName, k)).first->second);
 	destination = (vertices.count(destinationName)) ? (vertices.at(destinationName)) : (vertices.emplace(destinationName, new Vertex(destinationName, k)).first->second);
 
-	//add edge to set, return edge
+	//add edge to set and return edge
 	return *edges.emplace(new Edge(origin, destination)).first;
+}
+
+//adds edge to vertices' edges
+void addEdgeToVertices(Edge* edge)
+{
+	//add edge to vertices
+	edge->ORIGIN->addOutEdge(edge);
+	edge->DESTINATION->addInEdge(edge);
 }
 
 //deletes vertices and edges
@@ -128,11 +137,137 @@ bool removeEdge(int& numRemovableEdges, bool& isEdgeHandled)
 	}
 }
 
-//attempt to add edge to digraph in Kiraly's algorithm, returns true if edge is accepted and false otherwise
-bool addEdge()
+//initalizes queue and set and map
+void initializeBreadthFirstSearch(Edge* edge, std::queue<Vertex*>& sourceQueue, std::unordered_set<Vertex*>& sourceVertices, std::unordered_map<Vertex*, Edge*>& sourceEdges)
 {
-	//TODO, SquareWithSlash.csv is (1, -1)-tight and (2, -1)-sparse
-	return true;
+	//add edge and edge vertices to sources
+	sourceQueue.push(edge->DESTINATION);
+	sourceQueue.push(edge->ORIGIN);
+	sourceVertices.emplace(edge->DESTINATION);
+	sourceVertices.emplace(edge->ORIGIN);
+	sourceEdges.emplace(edge->DESTINATION, edge);
+	sourceEdges.emplace(edge->ORIGIN, edge);
+}
+
+//reverses path from source to vertex of edge
+void reversePath(Vertex* source, Edge* edge, std::unordered_map<Vertex*, Edge*>& sourceEdges, std::unordered_set<Edge*>& edges)
+{
+	//declaration
+	Edge* reversibleEdge = sourceEdges.at(source);
+
+	//reverse each edge on the path
+	while (reversibleEdge != edge)
+	{
+		//get and add reverse
+		Edge* reversedEdge = reversibleEdge->getReverse();
+		addEdgeToVertices(reversedEdge);
+		edges.emplace(reversedEdge);
+
+		//remove old
+		reversibleEdge->ORIGIN->removeOutEdge(reversibleEdge);
+		reversibleEdge->DESTINATION->removeInEdge(reversibleEdge);
+		edges.erase(reversibleEdge);
+		delete reversibleEdge;
+
+		//move on
+		reversibleEdge = sourceEdges.at(reversedEdge->ORIGIN);
+	}
+}
+
+//adds in neighbors of a vertex to breadth-first search
+void addInNeighbors(std::queue<Vertex*>& sourceQueue, std::unordered_set<Vertex*>& sourceVertices, std::unordered_map<Vertex*, Edge*>& sourceEdges)
+{
+	//iterate through in edges
+	for (Edge* inEdge : sourceQueue.front()->getInEdges())
+	{
+		//only add vertices that haven't already been added
+		if (!sourceVertices.count(inEdge->ORIGIN))
+		{
+			sourceQueue.push(inEdge->ORIGIN);
+			sourceVertices.emplace(inEdge->ORIGIN);
+			sourceEdges.emplace(inEdge->ORIGIN, inEdge);
+		}
+	}
+}
+
+//analyzes paths to vertices of edge, returns true if edge can be added and false otherwise
+bool analyzePaths(Edge* edge, std::unordered_set<Edge*>& edges, std::unordered_set<Vertex*>& labeledVertices, int k)
+{
+	//declarations
+	std::queue<Vertex*> sourceQueue;
+	std::unordered_set<Vertex*> sourceVertices;
+	std::unordered_map<Vertex*, Edge*> sourceEdges;
+
+	//initialize
+	initializeBreadthFirstSearch(edge, sourceQueue, sourceVertices, sourceEdges);
+
+	//breadth-first search
+	while (!sourceQueue.empty())
+	{
+		if (sourceQueue.front()->getInDegree() < k) //in degree is below max
+		{
+			//reverse path to edge vertex, edge can now be added because in degree of one of the edge vertices decreased
+			reversePath(sourceQueue.front(), edge, sourceEdges, edges);
+			return true;
+		}
+		else //in degree is at max
+		{
+			//add in neighbors and move on
+			addInNeighbors(sourceQueue, sourceVertices, sourceEdges);
+			sourceQueue.pop();
+		}
+	}
+
+	//label vertices that can reach edge vertices
+	for (Vertex* source : sourceVertices)
+	{
+		labeledVertices.emplace(source);
+	}
+
+	//edge can't be added
+	return false;
+}
+
+//attempt to add edge to digraph in Kiraly's algorithm, returns true if edge is accepted and false otherwise
+bool addEdge(Edge* edge, std::unordered_set<Edge*>& edges, std::unordered_set<Edge*>& acceptedEdges, std::unordered_set<Vertex*>& labeledVertices, int k)
+{
+	//declaration
+	bool isEdgeHandled = false;
+
+	//repeat until edge is handled
+	while (!isEdgeHandled)
+	{
+		if (edge->DESTINATION->getInDegree() < k) //edge is oriented properly
+		{
+			//add and accept edge
+			addEdgeToVertices(edge);
+			acceptedEdges.emplace(edge);
+			return true;
+		}
+		else if (edge->ORIGIN->getInDegree() < k) //edge is reversed
+		{
+			//get reverse
+			Edge* reversedEdge = edge->getReverse();
+
+			//remove edge
+			edges.erase(edge);
+			delete edge;
+
+			//add and accept reverse
+			edges.emplace(reversedEdge);
+			addEdgeToVertices(reversedEdge);
+			acceptedEdges.emplace(reversedEdge);
+			return true;
+		}
+		else //more work must be done
+		{
+			//edge is not handled if it can be added because it has yet to be added, end otherwise
+			isEdgeHandled = !analyzePaths(edge, edges, labeledVertices, k);
+		}
+	}
+
+	//edge could not be added
+	return false;
 }
 
 //checks sparsity and tightness using Kiraly's algorithm (https://web.cs.elte.hu/egres/qp/egresqp-19-04.pdf)
@@ -154,8 +289,7 @@ std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 		//repeat until edge is handled completely
 		while (!isEdgeHandled)
 		{
-			//check if both vertices are labeled
-			if (labeledVertices.count(edge->ORIGIN) && labeledVertices.count(edge->DESTINATION))
+			if (labeledVertices.count(edge->ORIGIN) && labeledVertices.count(edge->DESTINATION)) //both vertices are labeled
 			{
 				//remove edge if possible and return "not sparse" otherwise
 				if (!removeEdge(numRemovableEdges, isEdgeHandled))
@@ -163,10 +297,10 @@ std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 					return "NOT SPARSE";
 				}
 			}
-			else
+			else //a vertex is unlabeled
 			{
 				//attempt to add edge to digraph
-				isEdgeHandled = addEdge();
+				isEdgeHandled = addEdge(edge, edges, acceptedEdges, labeledVertices, k);
 			}
 		}
 	}

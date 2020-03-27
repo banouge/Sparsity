@@ -12,6 +12,8 @@ public:
 
 	const std::string NAME;
 
+	const std::unordered_set<Edge*>& getInEdges();
+	const std::unordered_set<Edge*>& getOutEdges();
 	int getNumPebbles();
 	int getInDegree();
 	int getOutDegree();
