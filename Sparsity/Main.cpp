@@ -69,12 +69,20 @@ int getL()
 Edge* getNextEdge(std::ifstream& inputFile, std::unordered_map<std::string, Vertex*>& vertices, std::unordered_set<Edge*>& edges, int k)
 {
 	//declarations
-	std::string line;
 	Vertex* origin;
 	Vertex* destination;
+	std::string line = "";
+
+	//get line
+	std::getline(inputFile, line);
+
+	//return null if at end
+	if (line.size() == 0)
+	{
+		return nullptr;
+	}
 
 	//get vertex names
-	std::getline(inputFile, line);
 	std::size_t posComma = line.find(',');
 	std::string originName = line.substr(0, posComma);
 	std::string destinationName = line.substr(posComma + 1);
@@ -87,26 +95,86 @@ Edge* getNextEdge(std::ifstream& inputFile, std::unordered_map<std::string, Vert
 	return *edges.emplace(new Edge(origin, destination)).first;
 }
 
+//deletes vertices and edges
+void deleteVerticesAndEdges(std::unordered_map<std::string, Vertex*>& vertices, std::unordered_set<Edge*>& edges)
+{
+	//delete vertices
+	for (std::pair<std::string, Vertex*> vertex : vertices)
+	{
+		delete vertex.second;
+	}
+
+	//delete edges
+	for (Edge* edge : edges)
+	{
+		delete edge;
+	}
+}
+
+//attempts to remove edge in Kiraly's algorithm, returns true if successful and false if too many have been removed
+bool removeEdge(int& numRemovableEdges, bool& isEdgeHandled)
+{
+	//check how many edges can be removed
+	if (numRemovableEdges-- > 0)
+	{
+		//remove edge from consideration
+		isEdgeHandled = true;
+		return true;
+	}
+	else
+	{
+		//had to remove too many edges
+		return false;
+	}
+}
+
+//attempt to add edge to digraph in Kiraly's algorithm, returns true if edge is accepted and false otherwise
+bool addEdge()
+{
+	//TODO, SquareWithSlash.csv is (1, -1)-tight and (2, -1)-sparse
+	return true;
+}
+
 //checks sparsity and tightness using Kiraly's algorithm (https://web.cs.elte.hu/egres/qp/egresqp-19-04.pdf)
 std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 {
 	//declarations
 	std::unordered_map<std::string, Vertex*> vertices;
-	std::unordered_set<Vertex*> xVertices;
+	std::unordered_set<Vertex*> labeledVertices;
 	std::unordered_set<Edge*> edges;
-	std::unordered_set<Edge*> fEdges;
-	std::unordered_set<Edge*> gammaEdges;
+	std::unordered_set<Edge*> acceptedEdges;
+	int numRemovableEdges = -l;
 
-	//TODO
-
-	//TEMP
-	if (l < 0)
+	//iterate through edges
+	while (Edge* edge = getNextEdge(inputFile, vertices, edges, k))
 	{
-		return "WIP";
+		//declaration
+		bool isEdgeHandled = false;
+
+		//repeat until edge is handled completely
+		while (!isEdgeHandled)
+		{
+			//check if both vertices are labeled
+			if (labeledVertices.count(edge->ORIGIN) && labeledVertices.count(edge->DESTINATION))
+			{
+				//remove edge if possible and return "not sparse" otherwise
+				if (!removeEdge(numRemovableEdges, isEdgeHandled))
+				{
+					return "NOT SPARSE";
+				}
+			}
+			else
+			{
+				//attempt to add edge to digraph
+				isEdgeHandled = addEdge();
+			}
+		}
 	}
-	
-	//return "tight" if |E| = k|V| - l and "sparse" otherwise
-	return (edges.size() == k * vertices.size() - l) ? ("TIGHT") : ("SPARSE");
+
+	//clean up and return "tight" if |E| = k|V| - l and "sparse" otherwise
+	bool isTight = edges.size() == k * vertices.size() - l;
+	deleteVerticesAndEdges(vertices, edges);
+	return (isTight) ? ("TIGHT") : ("SPARSE");
 }
 
 //checks sparsity and tightness using Lee and Streinu's component pebble game (https://www.sciencedirect.com/science/article/pii/S0012365X07005602)
