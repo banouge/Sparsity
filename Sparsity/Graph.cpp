@@ -30,9 +30,17 @@ int Vertex::getOutDegree()
 	return outEdges.size();
 }
 
-void Vertex::setNumPebbles(int numPebbles)
+void Vertex::addVerticesThatShareComponent(std::unordered_set<Vertex*>& componentVertices)
 {
-	this->numPebbles = numPebbles;
+	for (Vertex* vertex : componentVertices)
+	{
+		verticesThatShareComponent.emplace(vertex);
+	}
+}
+
+void Vertex::addPebble()
+{
+	++numPebbles;
 }
 
 void Vertex::addInEdge(Edge* edge)
@@ -45,6 +53,11 @@ void Vertex::addOutEdge(Edge* edge)
 	outEdges.emplace(edge);
 }
 
+void Vertex::removePebble()
+{
+	--numPebbles;
+}
+
 void Vertex::removeInEdge(Edge* edge)
 {
 	inEdges.erase(edge);
@@ -53,6 +66,11 @@ void Vertex::removeInEdge(Edge* edge)
 void Vertex::removeOutEdge(Edge* edge)
 {
 	outEdges.erase(edge);
+}
+
+bool Vertex::doesVertexShareComponent(Vertex* vertex)
+{
+	return verticesThatShareComponent.count(vertex);
 }
 
 bool Vertex::hasInEdge(Edge* edge)

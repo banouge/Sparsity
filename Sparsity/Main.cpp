@@ -229,7 +229,7 @@ bool analyzePaths(Edge* edge, std::unordered_set<Edge*>& edges, std::unordered_s
 }
 
 //attempt to add edge to digraph in Kiraly's algorithm, returns true if edge is accepted and false otherwise
-bool addEdge(Edge* edge, std::unordered_set<Edge*>& edges, std::unordered_set<Edge*>& acceptedEdges, std::unordered_set<Vertex*>& labeledVertices, int k)
+bool addEdge(Edge* edge, std::unordered_set<Edge*>& edges, std::unordered_set<Vertex*>& labeledVertices, int k)
 {
 	//declaration
 	bool isEdgeHandled = false;
@@ -239,9 +239,8 @@ bool addEdge(Edge* edge, std::unordered_set<Edge*>& edges, std::unordered_set<Ed
 	{
 		if (edge->DESTINATION->getInDegree() < k) //edge is oriented properly
 		{
-			//add and accept edge
+			//add edge
 			addEdgeToVertices(edge);
-			acceptedEdges.emplace(edge);
 			return true;
 		}
 		else if (edge->ORIGIN->getInDegree() < k) //edge is reversed
@@ -253,10 +252,9 @@ bool addEdge(Edge* edge, std::unordered_set<Edge*>& edges, std::unordered_set<Ed
 			edges.erase(edge);
 			delete edge;
 
-			//add and accept reverse
+			//add reverse
 			edges.emplace(reversedEdge);
 			addEdgeToVertices(reversedEdge);
-			acceptedEdges.emplace(reversedEdge);
 			return true;
 		}
 		else //more work must be done
@@ -277,7 +275,6 @@ std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 	std::unordered_map<std::string, Vertex*> vertices;
 	std::unordered_set<Vertex*> labeledVertices;
 	std::unordered_set<Edge*> edges;
-	std::unordered_set<Edge*> acceptedEdges;
 	int numRemovableEdges = -l;
 
 	//iterate through edges
@@ -291,16 +288,17 @@ std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 		{
 			if (labeledVertices.count(edge->ORIGIN) && labeledVertices.count(edge->DESTINATION)) //both vertices are labeled
 			{
-				//remove edge if possible and return "not sparse" otherwise
+				//remove edge if possible and clean up and return "not sparse" otherwise
 				if (!removeEdge(numRemovableEdges, isEdgeHandled))
 				{
+					deleteVerticesAndEdges(vertices, edges);
 					return "NOT SPARSE";
 				}
 			}
 			else //a vertex is unlabeled
 			{
 				//attempt to add edge to digraph
-				isEdgeHandled = addEdge(edge, edges, acceptedEdges, labeledVertices, k);
+				isEdgeHandled = addEdge(edge, edges, labeledVertices, k);
 			}
 		}
 	}
@@ -311,11 +309,66 @@ std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 	return (isTight) ? ("TIGHT") : ("SPARSE");
 }
 
+void addEdgeToDigraph(Edge* edge, std::unordered_set<Edge*>& edges)
+{
+	if (edge->ORIGIN->getNumPebbles() > 0) //edge is oriented properly
+	{
+		//add edge
+		edge->ORIGIN->removePebble();
+		addEdgeToVertices(edge);
+	}
+	else //edge is reversed
+	{
+		//get reverse
+		Edge* reversedEdge = edge->getReverse();
+
+		//remove edge
+		edges.erase(edge);
+		delete edge;
+
+		//add reverse
+		edges.emplace(reversedEdge);
+		reversedEdge->ORIGIN->removePebble();
+		addEdgeToVertices(reversedEdge);
+	}
+}
+
 //checks sparsity and tightness using Lee and Streinu's component pebble game (https://www.sciencedirect.com/science/article/pii/S0012365X07005602)
 std::string checkSparsityWithNonNegativeL(std::ifstream& inputFile, int k, int l)
 {
-	//TODO
-	return "WIP";
+	//declarations
+	std::unordered_map<std::string, Vertex*> vertices;
+	std::unordered_set<Edge*> edges;
+
+	//iterate through edges
+	while (Edge* edge = getNextEdge(inputFile, vertices, edges, k))
+	{
+		if ((edge->ORIGIN == edge->DESTINATION && l >= k) || edge->ORIGIN->doesVertexShareComponent(edge->DESTINATION)) //edge is illegal loop or violates component
+		{
+			//clean up and return not sparse, sparse graphs with l >= k can't have loops, component violation means subgraph has too many edges
+			deleteVerticesAndEdges(vertices, edges);
+			return "NOT SPARSE";
+		}
+		else //edge is acceptable
+		{
+			//if edge doesn't have enough pebbles then get enough pebbles
+			while (edge->ORIGIN->getNumPebbles() + edge->DESTINATION->getNumPebbles() <= l)
+			{
+				//TODO: use DFS to get enough pebbles on edge
+				return "WIP"; //TEMP
+			}
+
+			//add edge
+			addEdgeToDigraph(edge, edges);
+
+			//TODO: maintain components
+		}
+	}
+
+	//clean up and return "tight" if |E| = k|V| - l and "sparse" otherwise
+	bool isTight = edges.size() == k * vertices.size() - l;
+	deleteVerticesAndEdges(vertices, edges);
+	return (isTight) ? ("TIGHT") : ("SPARSE");
 }
 
 //shows result
