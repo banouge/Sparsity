@@ -311,7 +311,7 @@ std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 }
 
 //accepts edge in Lee and Streinu's component pebble game
-void addEdgeToDigraph(Edge* edge, std::unordered_set<Edge*>& edges)
+void addEdgeToDigraph(Edge*& edge, std::unordered_set<Edge*>& edges)
 {
 	if (edge->ORIGIN->getNumPebbles()) //edge is oriented properly
 	{
@@ -332,6 +332,7 @@ void addEdgeToDigraph(Edge* edge, std::unordered_set<Edge*>& edges)
 		edges.emplace(reversedEdge);
 		reversedEdge->ORIGIN->removePebble();
 		addEdgeToVertices(reversedEdge);
+		edge = reversedEdge;
 	}
 }
 
@@ -419,6 +420,114 @@ void getPebble(Edge* edge, std::unordered_set<Edge*>& edges)
 	}
 }
 
+//gets vertices reachable from edge vertices, returns true if a reached vertex that isn't in the edge has a pebble and false otherwise
+bool doVerticesReachableFromEdgeHavePebbles(Edge* edge, std::unordered_set<Vertex*>& reachableVertices)
+{
+	//declaration
+	std::stack<Vertex*> vertexStack;
+
+	//initialize
+	vertexStack.push(edge->ORIGIN);
+	vertexStack.push(edge->DESTINATION);
+	reachableVertices.emplace(edge->ORIGIN);
+	reachableVertices.emplace(edge->DESTINATION);
+
+	//get vertices reachable from edge vertices
+	while (!vertexStack.empty())
+	{
+		//get top
+		Vertex* vertex = vertexStack.top();
+		vertexStack.pop();
+
+		//add out neighbors
+		for (Edge* outEdge : vertex->getOutEdges())
+		{
+			//only address vertices that haven't been addressed yet
+			if (!reachableVertices.count(outEdge->DESTINATION))
+			{
+				//end because edge could have had more pebbles by taking a pebble from this vertex, components do not change
+				if (outEdge->DESTINATION->getNumPebbles())
+				{
+					return true;
+				}
+
+				//add neighbor
+				vertexStack.push(outEdge->DESTINATION);
+				reachableVertices.emplace(outEdge->DESTINATION);
+			}
+		}
+	}
+
+	//no reached vertices had pebbles
+	return false;
+}
+
+//gets component vertices
+void getComponentVertices(std::unordered_set<Vertex*>& componentVertices, std::unordered_set<Vertex*>& reachableVertices, std::unordered_map<std::string, Vertex*>& vertices)
+{
+	//declaration
+	std::stack<Vertex*> vertexStack;
+
+	//initialize
+	for (std::pair<std::string, Vertex*> vertex : vertices)
+	{
+		if (vertex.second->getNumPebbles() && !reachableVertices.count(vertex.second)) //vertex is unreachable from edge vertices and has pebbles
+		{
+			//add to stack
+			vertexStack.push(vertex.second);
+		}
+		else //vertex is reachable from edge vertices or has no pebbles
+		{
+			//add to component
+			componentVertices.emplace(vertex.second);
+		}
+	}
+
+	//remove from component all vertices that reach a vertex with pebbles that is unreachable from edge vertices
+	while (!vertexStack.empty())
+	{
+		//get top
+		Vertex* vertex = vertexStack.top();
+		vertexStack.pop();
+
+		//add in neighbor to stack, remove in neighbor from component (in neighbor has access to more pebbles)
+		for (Edge* inEdge : vertex->getInEdges())
+		{
+			//only add/remove if neighbor hasn't been added/removed already
+			if (componentVertices.count(inEdge->ORIGIN))
+			{
+				vertexStack.push(inEdge->ORIGIN);
+				componentVertices.erase(inEdge->ORIGIN);
+			}
+		}
+	}
+}
+
+//updates components
+void updateComponents(Edge* edge, std::unordered_map<std::string, Vertex*>& vertices, int l)
+{
+	//components only change if the edge had the minimum possible pebbles
+	if (edge->ORIGIN->getNumPebbles() + edge->DESTINATION->getNumPebbles() == l)
+	{
+		//declarations
+		std::unordered_set<Vertex*> reachableVertices;
+		std::unordered_set<Vertex*> componentVertices;
+
+		//edge couldn't have had more pebbles by taking a pebble from a reachable vertex, components change
+		if (!doVerticesReachableFromEdgeHavePebbles(edge, reachableVertices))
+		{
+			//get component vertices
+			getComponentVertices(componentVertices, reachableVertices, vertices);
+
+			//update components
+			for (Vertex* vertex : componentVertices)
+			{
+				vertex->addVerticesThatShareComponent(componentVertices);
+			}
+		}
+	}
+}
+
 //checks sparsity and tightness using Lee and Streinu's component pebble game (https://www.sciencedirect.com/science/article/pii/S0012365X07005602)
 std::string checkSparsityWithNonNegativeL(std::ifstream& inputFile, int k, int l)
 {
@@ -429,9 +538,9 @@ std::string checkSparsityWithNonNegativeL(std::ifstream& inputFile, int k, int l
 	//iterate through edges
 	while (Edge* edge = getNextEdge(inputFile, vertices, edges, k))
 	{
-		if ((edge->ORIGIN == edge->DESTINATION && l >= k) || edge->ORIGIN->doesVertexShareComponent(edge->DESTINATION)) //edge is illegal loop or violates component
+		if ((edge->ORIGIN == edge->DESTINATION && l >= k) || edge->ORIGIN->doesVertexShareComponent(edge->DESTINATION) || l >= 2 * k) //edge is illegal
 		{
-			//clean up and return not sparse, sparse graphs with l >= k can't have loops, component violation means subgraph has too many edges
+			//clean up and return not sparse, sparse graphs with l >= k can't have loops and l >= 2k can't have edges, component violation means subgraph has too many edges
 			deleteVerticesAndEdges(vertices, edges);
 			return "NOT SPARSE";
 		}
@@ -443,10 +552,9 @@ std::string checkSparsityWithNonNegativeL(std::ifstream& inputFile, int k, int l
 				getPebble(edge, edges);
 			}
 
-			//add edge
+			//add edge and update components
 			addEdgeToDigraph(edge, edges);
-
-			//TODO: maintain components
+			updateComponents(edge, vertices, l);
 		}
 	}
 
