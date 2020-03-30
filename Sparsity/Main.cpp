@@ -1,6 +1,7 @@
 #include <fstream>
 #include <iostream>
 #include <queue>
+#include <stack>
 #include <unordered_map>
 #include "Graph.h"
 
@@ -124,7 +125,7 @@ void deleteVerticesAndEdges(std::unordered_map<std::string, Vertex*>& vertices, 
 bool removeEdge(int& numRemovableEdges, bool& isEdgeHandled)
 {
 	//check how many edges can be removed
-	if (numRemovableEdges-- > 0)
+	if (numRemovableEdges--)
 	{
 		//remove edge from consideration
 		isEdgeHandled = true;
@@ -309,9 +310,10 @@ std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 	return (isTight) ? ("TIGHT") : ("SPARSE");
 }
 
+//accepts edge in Lee and Streinu's component pebble game
 void addEdgeToDigraph(Edge* edge, std::unordered_set<Edge*>& edges)
 {
-	if (edge->ORIGIN->getNumPebbles() > 0) //edge is oriented properly
+	if (edge->ORIGIN->getNumPebbles()) //edge is oriented properly
 	{
 		//add edge
 		edge->ORIGIN->removePebble();
@@ -330,6 +332,90 @@ void addEdgeToDigraph(Edge* edge, std::unordered_set<Edge*>& edges)
 		edges.emplace(reversedEdge);
 		reversedEdge->ORIGIN->removePebble();
 		addEdgeToVertices(reversedEdge);
+	}
+}
+
+//adds out neighbors of vertex to depth-first search
+void addOutNeighbors(Vertex* vertex, std::stack<Vertex*>& sourceStack, std::unordered_set<Vertex*>& sourceVertices, std::unordered_map<Vertex*, Edge*>& sourceEdges)
+{
+	//iterate through in edges
+	for (Edge* outEdge : vertex->getOutEdges())
+	{
+		//only add vertices that haven't already been added
+		if (!sourceVertices.count(outEdge->DESTINATION))
+		{
+			sourceStack.push(outEdge->DESTINATION);
+			sourceVertices.emplace(outEdge->DESTINATION);
+			sourceEdges.emplace(outEdge->DESTINATION, outEdge);
+		}
+	}
+}
+
+//moves pebble from source to vertex of edge, reverses path from edge to vertex
+void movePebble(Vertex* source, Edge* edge, std::unordered_map<Vertex*, Edge*>& sourceEdges, std::unordered_set<Edge*>& edges)
+{
+	//declarations
+	Vertex* destination = nullptr;
+	Edge* reversibleEdge = sourceEdges.at(source);
+
+	//reverse each edge on the path
+	while (reversibleEdge != edge)
+	{
+		//get and add reverse
+		Edge* reversedEdge = reversibleEdge->getReverse();
+		addEdgeToVertices(reversedEdge);
+		edges.emplace(reversedEdge);
+
+		//remove old
+		reversibleEdge->ORIGIN->removeOutEdge(reversibleEdge);
+		reversibleEdge->DESTINATION->removeInEdge(reversibleEdge);
+		edges.erase(reversibleEdge);
+		delete reversibleEdge;
+
+		//move on
+		destination = reversedEdge->DESTINATION;
+		reversibleEdge = sourceEdges.at(destination);
+	}
+
+	//move pebble
+	source->removePebble();
+	destination->addPebble();
+}
+
+//gets pebble onto edge's vertices using depth-first search
+void getPebble(Edge* edge, std::unordered_set<Edge*>& edges)
+{
+	//declarations
+	std::stack<Vertex*> sourceStack;
+	std::unordered_set<Vertex*> sourceVertices;
+	std::unordered_map<Vertex*, Edge*> sourceEdges;
+
+	//initialize
+	sourceVertices.emplace(edge->DESTINATION);
+	sourceVertices.emplace(edge->ORIGIN);
+	sourceEdges.emplace(edge->DESTINATION, edge);
+	sourceEdges.emplace(edge->ORIGIN, edge);
+	addOutNeighbors(edge->DESTINATION, sourceStack, sourceVertices, sourceEdges);
+	addOutNeighbors(edge->ORIGIN, sourceStack, sourceVertices, sourceEdges);
+
+	//depth-first search
+	while (!sourceStack.empty())
+	{
+		//declaration
+		Vertex* source = sourceStack.top();
+
+		if (source->getNumPebbles()) //pebble found
+		{
+			//move pebble and end
+			movePebble(source, edge, sourceEdges, edges);
+			return;
+		}
+		else //no pebble found
+		{
+			//add out neighbors and move on
+			sourceStack.pop();
+			addOutNeighbors(source, sourceStack, sourceVertices, sourceEdges);
+		}
 	}
 }
 
@@ -354,8 +440,7 @@ std::string checkSparsityWithNonNegativeL(std::ifstream& inputFile, int k, int l
 			//if edge doesn't have enough pebbles then get enough pebbles
 			while (edge->ORIGIN->getNumPebbles() + edge->DESTINATION->getNumPebbles() <= l)
 			{
-				//TODO: use DFS to get enough pebbles on edge
-				return "WIP"; //TEMP
+				getPebble(edge, edges);
 			}
 
 			//add edge
