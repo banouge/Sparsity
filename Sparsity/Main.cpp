@@ -67,8 +67,33 @@ int getL()
 	return l;
 }
 
-//gets next edge from file, adds edge to set (but not vertices because edge may be reversed or rejected), creates and adds vertices to map if necessary
-Edge* getNextEdge(std::ifstream& inputFile, std::unordered_map<std::string, Vertex*>& vertices, std::unordered_set<Edge*>& edges, int k)
+//adds vetices to map
+void addVertices(std::ifstream& inputFile, std::unordered_map<std::string, Vertex*>& vertices, int k)
+{
+	//declaration
+	std::string line = "";
+
+	//get line
+	std::getline(inputFile, line);
+
+	//add first vertices
+	while (line.find(',') < line.size())
+	{
+		std::size_t posComma = line.find(',');
+		std::string vertexName = line.substr(0, posComma);
+		vertices.emplace(vertexName, new Vertex(vertexName, k));
+		line = line.substr(posComma + 1);
+	}
+
+	//add last vertex if there are multiple vertices
+	if (line.size())
+	{
+		vertices.emplace(line, new Vertex(line, k));
+	}
+}
+
+//gets next edge from file, adds edge to set (but not vertices because edge may be reversed or rejected)
+Edge* getNextEdge(std::ifstream& inputFile, std::unordered_map<std::string, Vertex*>& vertices, std::unordered_set<Edge*>& edges)
 {
 	//declarations
 	Vertex* origin;
@@ -87,11 +112,13 @@ Edge* getNextEdge(std::ifstream& inputFile, std::unordered_map<std::string, Vert
 	//get vertex names
 	std::size_t posComma = line.find(',');
 	std::string originName = line.substr(0, posComma);
-	std::string destinationName = line.substr(posComma + 1);
+	line = line.substr(posComma + 1);
+	posComma = line.find(',');
+	std::string destinationName = (posComma < line.size()) ? (line.substr(0, posComma)) : (line);
 
-	//get or create origin and destination
-	origin = (vertices.count(originName)) ? (vertices.at(originName)) : (vertices.emplace(originName, new Vertex(originName, k)).first->second);
-	destination = (vertices.count(destinationName)) ? (vertices.at(destinationName)) : (vertices.emplace(destinationName, new Vertex(destinationName, k)).first->second);
+	//get origin and destination
+	origin = vertices.at(originName);
+	destination = vertices.at(destinationName);
 
 	//add edge to set and return edge
 	return *edges.emplace(new Edge(origin, destination)).first;
@@ -272,14 +299,15 @@ bool addEdge(Edge* edge, std::unordered_set<Edge*>& edges, std::unordered_set<Ve
 //checks sparsity and tightness using Kiraly's algorithm (https://web.cs.elte.hu/egres/qp/egresqp-19-04.pdf)
 std::string checkSparsityWithNegativeL(std::ifstream& inputFile, int k, int l)
 {
-	//declarations
+	//initialization
 	std::unordered_map<std::string, Vertex*> vertices;
 	std::unordered_set<Vertex*> labeledVertices;
 	std::unordered_set<Edge*> edges;
 	int numRemovableEdges = -l;
+	addVertices(inputFile, vertices, k);
 
 	//iterate through edges
-	while (Edge* edge = getNextEdge(inputFile, vertices, edges, k))
+	while (Edge* edge = getNextEdge(inputFile, vertices, edges))
 	{
 		//declaration
 		bool isEdgeHandled = false;
@@ -507,7 +535,7 @@ void getComponentVertices(std::unordered_set<Vertex*>& componentVertices, std::u
 void updateComponents(Edge* edge, std::unordered_map<std::string, Vertex*>& vertices, int l)
 {
 	//components only change if the edge had the minimum possible pebbles
-	if (edge->ORIGIN->getNumPebbles() + edge->DESTINATION->getNumPebbles() == l)
+	if (edge->getNumPebbles() == l)
 	{
 		//declarations
 		std::unordered_set<Vertex*> reachableVertices;
@@ -531,14 +559,15 @@ void updateComponents(Edge* edge, std::unordered_map<std::string, Vertex*>& vert
 //checks sparsity and tightness using Lee and Streinu's component pebble game (https://www.sciencedirect.com/science/article/pii/S0012365X07005602)
 std::string checkSparsityWithNonNegativeL(std::ifstream& inputFile, int k, int l)
 {
-	//declarations
+	//initialization
 	std::unordered_map<std::string, Vertex*> vertices;
 	std::unordered_set<Edge*> edges;
+	addVertices(inputFile, vertices, k);
 
 	//iterate through edges
-	while (Edge* edge = getNextEdge(inputFile, vertices, edges, k))
+	while (Edge* edge = getNextEdge(inputFile, vertices, edges))
 	{
-		if ((edge->ORIGIN == edge->DESTINATION && l >= k) || edge->ORIGIN->doesVertexShareComponent(edge->DESTINATION) || l >= 2 * k) //edge is illegal
+		if ((edge->IS_LOOP && l >= k) || edge->ORIGIN->doesVertexShareComponent(edge->DESTINATION) || l >= 2 * k) //edge is illegal
 		{
 			//clean up and return not sparse, sparse graphs with l >= k can't have loops and l >= 2k can't have edges, component violation means subgraph has too many edges
 			deleteVerticesAndEdges(vertices, edges);
@@ -547,7 +576,7 @@ std::string checkSparsityWithNonNegativeL(std::ifstream& inputFile, int k, int l
 		else //edge is acceptable
 		{
 			//if edge doesn't have enough pebbles then get enough pebbles
-			while (edge->ORIGIN->getNumPebbles() + edge->DESTINATION->getNumPebbles() <= l)
+			while (edge->getNumPebbles() <= l)
 			{
 				getPebble(edge, edges);
 			}

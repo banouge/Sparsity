@@ -42,6 +42,8 @@ public:
 
 	Vertex* const ORIGIN;
 	Vertex* const DESTINATION;
+	bool const IS_LOOP;
 
 	Edge* getReverse();
+	int getNumPebbles();
 };

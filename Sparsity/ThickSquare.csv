@@ -1,6 +1,9 @@
 A,B,C,D
 A,B,,
-A,C,,
 A,D,,
+B,A,,
 B,C,,
+C,B,,
 C,D,,
+D,A,,
+D,C,,

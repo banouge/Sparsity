@@ -83,11 +83,16 @@ bool Vertex::hasOutEdge(Edge* edge)
 	return outEdges.count(edge);
 }
 
-Edge::Edge(Vertex* origin, Vertex* destination): ORIGIN(origin), DESTINATION(destination)
+Edge::Edge(Vertex* origin, Vertex* destination): ORIGIN(origin), DESTINATION(destination), IS_LOOP(origin == destination)
 {
 }
 
 Edge* Edge::getReverse()
 {
 	return new Edge(DESTINATION, ORIGIN);
+}
+
+int Edge::getNumPebbles()
+{
+	return ORIGIN->getNumPebbles() + ((IS_LOOP) ? (0) : (DESTINATION->getNumPebbles()));
 }
